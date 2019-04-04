@@ -1,0 +1,29 @@
+{
+  "name": "nodejs-mqtt-data-logger",
+  "version": "1.0.0",
+  "description": "Logs sensor data from MQTT into SQLite",
+  "main": "nodejs-mqtt-data-logger.js",
+  "dependencies": {
+    "mqtt": "^2.18.8",
+    "mqtt-match": "^2.0.2",
+    "sqlite3": "^4.0.6"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/magma1447/nodejs-mqtt-data-logger.git"
+  },
+  "keywords": [
+    "mqtt",
+    "sqlite"
+  ],
+  "author": "Magnus Månsson",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/magma1447/nodejs-mqtt-data-logger/issues"
+  },
+  "homepage": "https://github.com/magma1447/nodejs-mqtt-data-logger#readme"
+}
