@@ -4,7 +4,7 @@
 var config = {
 	mqtt: 'mqtt://ha-01.localnet:1883',
 	topics: [
-		{ topic: 'shellies/+/relay/+/energy', multiplier: 0.01, unit: 'kWh', resetingCounter: true }
+		{ topic: 'shellies/+/relay/+/energy', type: 'energy', multiplier: 0.01, unit: 'kWh', resetingCounter: true }
 	]
 }
 
