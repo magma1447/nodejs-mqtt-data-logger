@@ -11,14 +11,24 @@ var config = {
 
 // Data logger
 var DL = {
-	lastValues: {},	// Relevant for resetingCounters and to not write the same value twice
+	lastValues: {},	// Relevant for resetingCounters and to not write the same value twice in a row.
+	queue: [],
+	queueLock: false,
 
-	ParseData: function(topic, rawValue) {
-		var match = MQTT.GetMatchingTopic(topic);
+	AddIncomingMqttDataToQueue: function(topic, value) {
+		var job = { topic: topic, rawValue: value.toString() };
+		console.log('Adding job: ' + topic + ' => ' + value);
+		DL.queue.push(job);
+	},
+	TriggerQueue: function() {
+		if(DL.queueLock || !DL.queue.length) {
+			return;
+		}
+		DL.queueLock = true;
 
+		job = DL.queue[0];
+		if(typeof(DL.lastValues[job.topic]) === 'undefined') {
 
-		// If we don't have a value stored, fetch from the database
-		if(typeof(DL.lastValues[topic]) === 'undefined') {
 			let callback = function(topic, rawValue) {
 				return function(error, row) {
 					if(error) {
@@ -26,27 +36,32 @@ var DL = {
 						process.exit(1);
 					}
 					if(typeof(row) === 'undefined') {
-						console.log('New topic found: ' + topic);
-						DL.lastValues[topic] = 0;
-						DL.ParseData(topic, rawValue);
+						console.log('New topic found: ' + topic + ' => ' + rawValue);
+						DL.lastValues[topic] = rawValue;
 					} else {
+						console.log('Old topic restored: ' + topic + ' => ' + row.raw_value);
 						DL.lastValues[topic] = row.raw_value;
 					}
+
+					DL.TriggerQueue();
 				}
 			}
-			// DB.GetLatestValueForTopic(topic, callback(topic, rawValue));
-			let sql = "SELECT topic, raw_value FROM raw_data WHERE topic = ? ORDER BY timestamp DESC LIMIT 1";
-			DB.db.get(sql, [topic], callback(topic, rawValue));
+			DB.GetLatestValueForTopic(job.topic, job.rawValue, callback);
+			DL.queueLock = false;
+			return;
+		}
 
-		} else {
+		if(job.rawValue != DL.lastValues[job.topic]) {
+			var match = MQTT.GetMatchingTopic(job.topic);
 
-			value = Number(rawValue);
+			value = Number(job.rawValue);
 			if(value === 'NaN') {
+				DL.queueLock = false;
 				return false;
 			}
 
-			if(match.resetingCounter && value < DL.lastValues[topic]) {
-				value = value + DL.lastValues[topic];
+			if(match.resetingCounter && job.rawValue < DL.lastValues[job.topic]) {
+				value = value + DL.lastValues[job.topic];
 			}
 
 			if(typeof(match.multiplier) !== 'undefined') {
@@ -55,18 +70,19 @@ var DL = {
 			if(typeof(match.decimals) !== 'undefined') {
 				value = value.toFixed(match.decimals);
 			} else {
-				value = Number(value)
+				value = Number(value);
 			}
 
-
-			if(rawValue != DL.lastValues[topic]) {
-				console.log('WRITING topic: ' + topic + ' rawValue:' + rawValue + ' value: ' + value, ' last: ' + DL.lastValues[topic]);
-				DB.AddValue(topic, rawValue, value);
-				DL.lastValues[topic] = rawValue;
-			}
+			console.log('Writing to database: ' + job.topic + ' rawValue:' + job.rawValue + ' value: ' + value, ' lastRaw: ' + DL.lastValues[job.topic]);
+			DB.AddRawValue(job.topic, job.rawValue, value);
+			DL.lastValues[job.topic] = job.rawValue;
+			DL.queue.shift();
+			DL.queueLock = false;
+			return;
 		}
 
-		return true;
+		DL.queueLock = false;
+		return;
 	}
 }
 
@@ -93,7 +109,9 @@ var MQTT = {
 
 		// Handle MQTT message callbacks
 		MQTT.mqttClient.on('message', function(topic, value) {
-			DL.ParseData(topic, value.toString());
+			// DL.ParseData(topic, value.toString());
+			DL.AddIncomingMqttDataToQueue(topic, value);
+			DL.TriggerQueue();
 		});
 
 	},
@@ -148,11 +166,7 @@ var DB = {
 			}
 		});
 	},
-	GetLatestValueForTopic: function(topic, callback) {
-		let sql = "SELECT topic, raw_value FROM raw_data WHERE topic = ? ORDER BY timestamp DESC LIMIT 1";
-		DB.db.get(sql, [topic], callback());
-	},
-	AddValue: function(topic, rawValue, value) {
+	AddRawValue: function(topic, rawValue, value) {
 		let sql = "INSERT INTO raw_data (topic, timestamp, raw_value, calculated_value) VALUES (?, datetime(), ?, ?)";
 		DB.db.run(sql, [topic, rawValue, value], function(error) {
 			if(error) {
@@ -160,6 +174,10 @@ var DB = {
 				process.exit(1);
 			}
 		});
+	},
+	GetLatestValueForTopic: function(topic, rawValue, callback) {
+		let sql = "SELECT topic, raw_value FROM raw_data WHERE topic = ? ORDER BY timestamp DESC LIMIT 1";
+		DB.db.get(sql, [topic], callback(topic, rawValue));
 
 	}
 
