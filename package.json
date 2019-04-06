@@ -6,6 +6,7 @@
   "dependencies": {
     "mqtt": "^2.18.8",
     "mqtt-match": "^2.0.2",
+    "node-schedule": "^1.3.2",
     "sqlite3": "^4.0.6"
   },
   "devDependencies": {},
