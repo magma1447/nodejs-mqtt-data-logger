@@ -35,6 +35,7 @@ var DataLogger = {
 		}
 
 		DB.AggregateHourlyData();
+		DB.AggregateDailyData();
 	},
 
 	HandleRawData: function() {
@@ -53,7 +54,7 @@ var DataLogger = {
 	},
 	HandleDailyData: function() {
 		// Aggregate
-		// FIXME IMPLEMENT
+		DB.AggregateDailyData();
 
 		// Purge
 		// FIXME IMPLEMENT
@@ -181,7 +182,6 @@ var DB = {
 	sqlite3: null,
 	db: null,
 
-	// FIXME - Add (unique) indexes for topic, timestamp
 	dbSchema: `
 	CREATE TABLE IF NOT EXISTS raw_data (
 	  id INTEGER NOT NULL PRIMARY KEY,
@@ -199,6 +199,14 @@ var DB = {
 	  value REAL NOT NULL
 	);
 	CREATE UNIQUE INDEX IF NOT EXISTS hourlydata_uidx on hourly_data (topic, timestamp);
+
+	CREATE TABLE IF NOT EXISTS daily_data (
+	  id INTEGER NOT NULL PRIMARY KEY,
+	  topic TEXT NOT NULL,
+	  timestamp NUMERIC NOT NULL,
+	  value REAL NOT NULL
+	);
+	CREATE UNIQUE INDEX IF NOT EXISTS dailydata_uidx on daily_data (topic, timestamp);
 	`,
 	Init: function() {
 		// Connecting to database
@@ -250,7 +258,7 @@ var DB = {
 	},
 	AggregateHourlyData: function() {
 		// Get the first YYYY-MM-DD HH:00:00 that doesn't exist in table hourly_data
-		let sql = "SELECT STRFTIME('%Y-%m-%d %H:00:00', DATETIME(MAX(timestamp), '+1 hour')) AS timestamp FROM hourly_data";
+		let sql = "SELECT STRFTIME('%Y-%m-%d %H:00:00', MAX(timestamp)) AS timestamp FROM hourly_data";
 		DB.db.get(sql, [], function(error, row) {
 			if(error) {
 				console.error(error);
@@ -265,7 +273,33 @@ var DB = {
 		}
 		console.info('AggregateHourlyDataFrom: ' + timestamp)
 
-		let sql = "INSERT INTO hourly_data (topic, timestamp, value) SELECT topic, STRFTIME('%Y-%m-%d %H:00:00', DATETIME(timestamp, '1 hour')) AS ymdh, MAX(calculated_value) AS value FROM raw_data WHERE timestamp >= ? GROUP BY topic, ymdh";
+		let sql = "INSERT INTO hourly_data (topic, timestamp, value) SELECT topic, STRFTIME('%Y-%m-%d %H:00:00', DATETIME(timestamp, '1 hour')) AS ymdh, MAX(calculated_value) AS value FROM raw_data WHERE timestamp >= ? AND timestamp < STRFTIME('%Y-%m-%d %H:00:00', 'now') GROUP BY topic, ymdh";
+		DB.db.run(sql, [timestamp], function(error) {
+			if(error) {
+				console.error(error);
+				process.exit(1);
+			}
+		});
+	},
+
+	AggregateDailyData: function() {
+		// Get the first YYYY-MM-DD 00:00:00 that doesn't exist in table daily_data
+		let sql = "SELECT STRFTIME('%Y-%m-%d 00:00:00', MAX(timestamp)) AS timestamp FROM daily_data";
+		DB.db.get(sql, [], function(error, row) {
+			if(error) {
+				console.error(error);
+				process.exit(1);
+			}
+			DB.AggregateDailyDataFrom(row.timestamp);
+		});
+	},
+	AggregateDailyDataFrom: function(timestamp) {
+		if(timestamp === null) {
+			timestamp = '1970-01-01 00:00';
+		}
+		console.info('AggregateDailyDataFrom: ' + timestamp)
+
+		let sql = "INSERT INTO daily_data (topic, timestamp, value) SELECT topic, STRFTIME('%Y-%m-%d 00:00:00', DATETIME(timestamp, '1 day')) AS ymd, MAX(calculated_value) AS value FROM raw_data WHERE timestamp >= ? AND timestamp < STRFTIME('%Y-%m-%d 00:00:00', 'now') GROUP BY topic, ymd";
 		DB.db.run(sql, [timestamp], function(error) {
 			if(error) {
 				console.error(error);
