@@ -10,8 +10,8 @@ var config = {
 		// If integer, keep number of days.
 		// If false, don't aggregate into this time interval.
 		// If true, don't purge
-		raw: 100,
-		hourly: 500,
+		raw: 500,
+		hourly: 1100,
 		daily: true,
 	},
 }

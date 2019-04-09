@@ -13,7 +13,7 @@ This should run as a daemon and will then read data from a MQTT Broker to which 
 - [x] Handle counters from hardware that resets the value from time to time (Shelly for example).
 - [ ] Add HTTP support to view the data.
 - [x] Aggregate hourly data into another database table.
-- [ ] Aggregate daily data into another database table.
+- [x] Aggregate daily data into another database table.
 - [x] Remove detailed (raw) data after X number of days.
 - [ ] Remove data from hourly/daily as well.
 
