@@ -119,11 +119,12 @@ var DataLogger = {
 			console.info('Writing to database: ' + job.topic + ' rawValue:' + job.rawValue + ' calculatedValue:' + calculatedValue, ' lastRaw:' + DataLogger.lastValues[job.topic].rawValue);
 			DB.AddRawValue(job.topic, job.rawValue, calculatedValue);
 			DataLogger.lastValues[job.topic] = {rawValue: Number(job.rawValue), calculatedValue: Number(calculatedValue)};
-			DataLogger.queue.shift();
-			DataLogger.queueLock = false;
-			return;
+			// DataLogger.queue.shift();
+			// DataLogger.queueLock = false;
+			// return;
 		}
 
+		DataLogger.queue.shift();
 		DataLogger.queueLock = false;
 		return;
 	},
@@ -259,7 +260,7 @@ var DB = {
 		});
 	},
 	AggregateHourlyDataFrom: function(timestamp) {
-		if(typeof(timestamp) === 'undefined') {
+		if(timestamp === null) {
 			timestamp = '1970-01-01 00:00';
 		}
 		console.info('AggregateHourlyDataFrom: ' + timestamp)
