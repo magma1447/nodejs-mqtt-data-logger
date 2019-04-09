@@ -64,6 +64,7 @@ var DataLogger = {
 		var job = { topic: topic, rawValue: value.toString() };
 		console.info('Adding job: ' + topic + ' => ' + value);
 		DataLogger.queue.push(job);
+		DataLogger.TriggerQueue();
 	},
 	TriggerQueue: function() {
 		if(DataLogger.queueLock || !DataLogger.queue.length) {
@@ -95,35 +96,42 @@ var DataLogger = {
 			return;
 		}
 
-		if(job.rawValue != DataLogger.lastValues[job.topic].rawValue) {
-			var match = MQTT.GetMatchingTopic(job.topic);
-
-			var calculatedValue = Number(job.rawValue);
-			if(calculatedValue === 'NaN') {
-				DataLogger.queueLock = false;
-				return false;
-			}
-
-			if(typeof(match.multiplier) !== 'undefined') {
-				calculatedValue = calculatedValue * match.multiplier;
-			}
-			if(typeof(match.decimals) !== 'undefined') {
-				calculatedValue = Number(calculatedValue.toFixed(match.decimals));
-			} else {
-				calculatedValue = Number(calculatedValue);
-			}
-
-			if(match.resetingCounter && calculatedValue < DataLogger.lastValues[job.topic].calculatedValue) {
-				calculatedValue = calculatedValue + DataLogger.lastValues[job.topic].calculatedValue;
-			}
-
-			console.info('Writing to database: ' + job.topic + ' rawValue:' + job.rawValue + ' calculatedValue:' + calculatedValue, ' lastRaw:' + DataLogger.lastValues[job.topic].rawValue);
-			DB.AddRawValue(job.topic, job.rawValue, calculatedValue);
-			DataLogger.lastValues[job.topic] = {rawValue: Number(job.rawValue), calculatedValue: Number(calculatedValue)};
-			// DataLogger.queue.shift();
-			// DataLogger.queueLock = false;
-			// return;
+		if(job.rawValue == DataLogger.lastValues[job.topic].rawValue) {
+			console.info('Counter not incremented, discarding job');
+			DataLogger.queue.shift();
+			DataLogger.queueLock = false;
+			return;
 		}
+
+		var match = MQTT.GetMatchingTopic(job.topic);
+
+		if(match.resetingCounter && job.rawValue < DataLogger.lastValues[job.topic].rawValue) {
+			var calculatedValue = Number(job.rawValue);
+		} else {
+			var calculatedValue = Number(job.rawValue) - DataLogger.lastValues[job.topic].rawValue;
+		}
+
+		if(calculatedValue === 'NaN') {
+			// DataLogger.queueLock = false;
+			// return false;
+			console.error('calculatedValue NaN');
+			process.exit(1);
+		}
+
+		if(typeof(match.multiplier) !== 'undefined') {
+			calculatedValue = calculatedValue * match.multiplier;
+		}
+		if(typeof(match.decimals) !== 'undefined') {
+			calculatedValue = Number(calculatedValue.toFixed(match.decimals));
+		} else {
+			calculatedValue = Number(calculatedValue);
+		}
+
+		// calculatedValue = calculatedValue + DataLogger.lastValues[job.topic].calculatedValue;
+
+		console.info('Writing to database: ' + job.topic + ' rawValue:' + job.rawValue + ' calculatedValue:' + calculatedValue, ' lastRaw:' + DataLogger.lastValues[job.topic].rawValue);
+		DB.AddRawValue(job.topic, job.rawValue, calculatedValue);
+		DataLogger.lastValues[job.topic] = {rawValue: Number(job.rawValue), calculatedValue: Number(calculatedValue)};
 
 		DataLogger.queue.shift();
 		DataLogger.queueLock = false;
@@ -156,7 +164,6 @@ var MQTT = {
 		MQTT.mqttClient.on('message', function(topic, value) {
 			// DataLogger.ParseData(topic, value.toString());
 			DataLogger.AddIncomingMqttDataToQueue(topic, value);
-			DataLogger.TriggerQueue();
 		});
 
 	},
@@ -273,7 +280,7 @@ var DB = {
 		}
 		console.info('AggregateHourlyDataFrom: ' + timestamp)
 
-		let sql = "INSERT INTO hourly_data (topic, timestamp, value) SELECT topic, STRFTIME('%Y-%m-%d %H:00:00', DATETIME(timestamp, '1 hour')) AS ymdh, MAX(calculated_value) AS value FROM raw_data WHERE timestamp >= ? AND timestamp < STRFTIME('%Y-%m-%d %H:00:00', 'now') GROUP BY topic, ymdh";
+		let sql = "INSERT INTO hourly_data (topic, timestamp, value) SELECT topic, STRFTIME('%Y-%m-%d %H:00:00', DATETIME(timestamp, '1 hour')) AS ymdh, SUM(calculated_value) AS value FROM raw_data WHERE timestamp >= ? AND timestamp < STRFTIME('%Y-%m-%d %H:00:00', 'now') GROUP BY topic, ymdh";
 		DB.db.run(sql, [timestamp], function(error) {
 			if(error) {
 				console.error(error);
@@ -299,7 +306,7 @@ var DB = {
 		}
 		console.info('AggregateDailyDataFrom: ' + timestamp)
 
-		let sql = "INSERT INTO daily_data (topic, timestamp, value) SELECT topic, STRFTIME('%Y-%m-%d 00:00:00', DATETIME(timestamp, '1 day')) AS ymd, MAX(calculated_value) AS value FROM raw_data WHERE timestamp >= ? AND timestamp < STRFTIME('%Y-%m-%d 00:00:00', 'now') GROUP BY topic, ymd";
+		let sql = "INSERT INTO daily_data (topic, timestamp, value) SELECT topic, STRFTIME('%Y-%m-%d 00:00:00', DATETIME(timestamp, '1 day')) AS ymd, SUM(calculated_value) AS value FROM raw_data WHERE timestamp >= ? AND timestamp < STRFTIME('%Y-%m-%d 00:00:00', 'now') GROUP BY topic, ymd";
 		DB.db.run(sql, [timestamp], function(error) {
 			if(error) {
 				console.error(error);
@@ -323,7 +330,36 @@ MQTT.Init();
 DataLogger.Init();
 
 
+// HTTP
+const express = require('express');
+const app = express();
+const port = 3000;
 
+app.get('/ajax/gethourlydata', function (req, res) {
+	let sql = "SELECT STRFTIME('%s', timestamp) || '000' AS timestamp, value FROM hourly_data";
+	DB.db.all(sql, [], function(error, rows) {
+		var data = [];
+		// var last = null;
+		rows.forEach(function(row) {
+			var value = 0;
+			// if(last === null) {
+				value = row.value;
+			// } else {
+			// 	value = row.value - last;
+			// }
+			// last = row.value;
+
+			value = Number(value.toFixed(3));
+			data.push([Number(row.timestamp), value]);
+		});
+
+		res.send(JSON.stringify(data));
+	});
+});
+app.use(express.static('public'));
+
+app.listen(port, () => console.info(`HTTP server listening on port ${port}!`));
+// -- HTTP
 
 
 // mqttClient.end()
