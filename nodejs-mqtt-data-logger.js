@@ -336,27 +336,25 @@ const app = express();
 const port = 3000;
 
 app.get('/ajax/gethourlydata', function (req, res) {
-	let sql = "SELECT STRFTIME('%s', timestamp) || '000' AS timestamp, value FROM hourly_data";
+	let sql = "SELECT topic, STRFTIME('%s', timestamp) || '000' AS timestamp, value FROM hourly_data";
 	DB.db.all(sql, [], function(error, rows) {
-		var data = [];
-		// var last = null;
+		var data = {};
 		rows.forEach(function(row) {
-			var value = 0;
-			// if(last === null) {
-				value = row.value;
-			// } else {
-			// 	value = row.value - last;
-			// }
-			// last = row.value;
+			if(typeof(data[row.topic]) === 'undefined') {
+				data[row.topic] = [];
+			}
 
-			value = Number(value.toFixed(3));
-			data.push([Number(row.timestamp), value]);
+			data[row.topic].push([Number(row.timestamp), Number(row.value)]);
 		});
 
 		res.send(JSON.stringify(data));
 	});
 });
 app.use(express.static('public'));
+
+app.use(function (req, res, next) {
+	res.status(404).send("Error 404")
+});
 
 app.listen(port, () => console.info(`HTTP server listening on port ${port}!`));
 // -- HTTP
