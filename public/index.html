@@ -1,50 +1,100 @@
-<html>
+<!doctype html>
+<html lang="en">
 	<head>
+
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+		<!-- <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous"> -->
+        <!-- <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootswatch/4.3.1/darkly/bootstrap.min.css"> -->
+        <!-- <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootswatch/4.3.1/slate/bootstrap.min.css"> -->
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootswatch/4.3.1/superhero/bootstrap.min.css">
 		<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
-		<script src="https://code.highcharts.com/highcharts.js"></script>
-		<script src="https://code.highcharts.com/modules/exporting.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+		<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+
+		<!-- <script src="https://code.highcharts.com/highcharts.src.js"></script> -->
+		<script src="https://code.highcharts.com/stock/highstock.src.js"></script>
+		<script src="https://code.highcharts.com/stock/modules/exporting.src.js"></script>
 		<script src="https://code.highcharts.com/modules/export-data.js"></script>
+		<script src="http://code.highcharts.com/themes/dark-unica.js"></script>
+
+		<title>NodeJS MQTT Data Logger</title>
 	</head>
 	<body>
-		<div id="container" style="width:100%; height:400px;"></div>
-	</body>
 
-	<script>
 
-		chart1 = Highcharts.chart('container', {
-			chart: {
-				type: 'column',
-			},
-			title: {
-				text: 'Hourly data',
-			},
-			xAxis: {
-				type: 'datetime',
-			},
-			// plotOptions: {
-			// 	spline: {
-			// 		marker: {
-			// 			enabled: true,
-			// 		},
-			// 	},
-			// },
-			tooltip: {
-				headerFormat: '<b>{series.name}</b><br>',
-				pointFormat: '{point.x:%Y-%m-%d} {point.x:%H:xx}<br>{point.y:.2f} kWh',
-			},
-			exporting: {
-				enabled: true,
-			},
-		});
+		<div class="container-fluid">
+			<div class="row">
+				<div class="col">
+					<h1>NodeJS MQTT Data Logger</h1>
+				</div>
+			</div>
 
-		$(document).ready(function() {
-			$.getJSON('/ajax/gethourlydata', function(data) {
-				$.each(data, function(topic, data) {
-					chart1.addSeries({ name: topic, data: data });
+			<div class="row">
+				<div class="col">
+					<div id="container" style="height:500px;"></div>
+				</div>
+			</div>
+		</div>
+
+
+
+
+
+
+		<script>
+
+			chart1 = Highcharts.stockChart('container', {
+				chart: {
+					type: 'column',
+					zoomType: 'x',
+				},
+				title: {
+					text: 'Hourly data',
+				},
+				xAxis: {
+					type: 'datetime',
+					labels: {
+						rotation: -45,
+					}
+				},
+				yAxis: {
+					scrollbar: {
+						enabled: true,
+						showFull: false,
+					}
+				},
+				legend: {
+					enabled: true,
+				},
+				// plotOptions: {
+				// 	series: {
+				// 		dataLabels: {
+				// 			enabled: true,
+				// 		}
+				// 	}
+				// },
+				tooltip: {
+					headerFormat: ''	,
+					pointFormat: '<b>{series.name}</b><br>{point.x:%Y-%m-%d} {point.x:%Hh}: {point.y:.2f} kWh',
+				},
+				exporting: {
+					enabled: true,
+				},
+			});
+
+			$(document).ready(function() {
+				$.getJSON('/ajax/gethourlydata', function(data) {
+					$.each(data, function(topic, data) {
+						chart1.addSeries({ name: topic, data: data });
+					});
 				});
 			});
-		});
 
-	</script>
+		</script>
+
+
+	</body>
 </html>
 

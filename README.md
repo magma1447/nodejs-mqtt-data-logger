@@ -11,20 +11,18 @@ This should run as a daemon and will then read data from a MQTT Broker to which 
 # TODO list
 - [x] Log data to SQLite.
 - [x] Handle counters from hardware that resets the value from time to time (Shelly for example).
-- [ ] Add HTTP support to view the data.
+- [x] Add HTTP support to view the data.
 - [x] Aggregate hourly data into another database table.
 - [x] Aggregate daily data into another database table.
 - [x] Remove detailed (raw) data after X number of days.
 - [ ] Remove data from hourly/daily as well.
+- [ ] Get all last values on startup instead.
+- [ ] Add daily data chart
+- [ ] Add real-time chart using table raw_data.
 
 ## Dependencies
 * [mqtt](https://www.npmjs.com/package/mqtt)
 * [mqtt-match](https://www.npmjs.com/package/mqtt-match)
 * [sqlite3](https://www.npmjs.com/package/sqlite3)
 * [node-schedule](https://www.npmjs.com/package/node-schedule)
-
-### Dependencies not yet added/implemented
 * [highcharts](https://www.npmjs.com/package/highcharts)
-
-### Reference to built-in http support
-* [http](https://www.w3schools.com/nodejs/nodejs_http.asp)

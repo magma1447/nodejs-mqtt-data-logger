@@ -72,6 +72,7 @@ var DataLogger = {
 		}
 		DataLogger.queueLock = true;
 
+		// Fetch latest value
 		job = DataLogger.queue[0];
 		if(typeof(DataLogger.lastValues[job.topic]) === 'undefined') {
 			let callback = function(topic, rawValue) {
@@ -82,7 +83,7 @@ var DataLogger = {
 					}
 					if(typeof(row) === 'undefined') {
 						console.info('New topic found: ' + topic + ' => ' + rawValue);
-						DataLogger.lastValues[topic] = {rawValue: Number(rawValue), calculatedValue: 0};
+						DataLogger.lastValues[topic] = {rawValue: false, calculatedValue: 0};
 					} else {
 						console.info('Old topic restored: ' + topic + ' => rawValue:' + row.raw_value + ' calculatedValue:' + row.calculated_value);
 						DataLogger.lastValues[topic] = {rawValue: Number(row.raw_value), calculatedValue: Number(row.calculated_value)};
@@ -95,13 +96,21 @@ var DataLogger = {
 			DataLogger.queueLock = false;
 			return;
 		}
+		// --
 
-		if(job.rawValue == DataLogger.lastValues[job.topic].rawValue) {
+
+		// Check if counter has increased
+		if(DataLogger.lastValues[job.topic].rawValue === false) {
+			DataLogger.lastValues[job.topic].rawValue = 0;
+		}
+		else if(job.rawValue == DataLogger.lastValues[job.topic].rawValue) {
 			console.info('Counter not incremented, discarding job');
 			DataLogger.queue.shift();
 			DataLogger.queueLock = false;
 			return;
 		}
+		// --
+
 
 		var match = MQTT.GetMatchingTopic(job.topic);
 
@@ -127,7 +136,12 @@ var DataLogger = {
 			calculatedValue = Number(calculatedValue);
 		}
 
-		// calculatedValue = calculatedValue + DataLogger.lastValues[job.topic].calculatedValue;
+		// Publish the calculated total kWh value to MQTT for other services to use
+		// if(match.resetingCounter) {
+		// 	let publishTopic = job.topic + '_total';
+		// 	MQTT.mqttClient.publish(publishTopic, calculatedValue.toString(), {retain: true});
+		// }
+
 
 		console.info('Writing to database: ' + job.topic + ' rawValue:' + job.rawValue + ' calculatedValue:' + calculatedValue, ' lastRaw:' + DataLogger.lastValues[job.topic].rawValue);
 		DB.AddRawValue(job.topic, job.rawValue, calculatedValue);
@@ -344,7 +358,7 @@ app.get('/ajax/gethourlydata', function (req, res) {
 				data[row.topic] = [];
 			}
 
-			data[row.topic].push([Number(row.timestamp), Number(row.value)]);
+			data[row.topic].push([Number(row.timestamp), Number(row.value.toFixed(5))]);
 		});
 
 		res.send(JSON.stringify(data));
